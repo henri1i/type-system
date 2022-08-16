@@ -1,4 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, vec};
+
+static TOKEN_BREAKERS: &[char] = &['{', '}', '(', ')', '=', ';', ' ', '[', ']'];
 
 #[derive(Debug, PartialEq, Clone)]
 enum Type {
@@ -120,35 +122,75 @@ fn infer(term: Term, mut map: HashMap<&str, Type>) -> Type {
 fn lex(value: &str) -> Vec<Token> {
     let mut tokens = vec![];
 
-    let mut current_token = String::from("");
-
     let mut value = value.to_string();
 
     value.push(' ');
 
-    for char in value.chars() {
-        match char {
-            true  => { current_token.push(char); continue; },
-            false => {
-                tokens.push(Token::Int(current_token.clone()));
-                current_token = String::from("");
-                continue;
-            },
+    let value = value.chars().collect::<Vec<_>>();
+
+    let mut index = 0;
+
+    loop {
+        if index >= value.len() {
+            break
         };
 
-        let result = concat_until(value.to_string(), |char| char.is_whitespace());
-        tokens.push(Token::Bool(result));
+        let current_char = value[index];
+
+        if current_char.is_numeric() {
+            let token = concat_until(
+                &value[index..],
+                |char| { !char.is_numeric() }
+            );
+
+            index += token.len();
+
+            tokens.push(Token::Int(token));
+        }
+
+        match current_char {
+            't' => {
+                let token = get_current_token(&value[index..]);
+
+                if token.eq("true") {
+                    tokens.push(Token::Bool(token.clone()));
+
+                    index += token.len();
+                }
+            },
+            'f' => {
+                let token = get_current_token(&value[index..]);
+
+                if token.eq("false") {
+                    tokens.push(Token::Bool(token.clone()));
+
+                    index += token.len();
+                }
+            },
+            _ => ()
+        };
+
+        index += 1;
     };
 
     tokens
 }
 
-fn concat_until(value: String, condition: fn(char) -> bool) -> String {
+fn get_current_token(chars: &[char]) -> String {
+    concat_until(
+        chars,
+        |char| {
+            TOKEN_BREAKERS.contains(&char)
+        }
+    )
+}
+
+fn concat_until(chars: &[char], condition: fn(char) -> bool) -> String {
     let mut result = String::from("");
 
-    for char in value.chars() {
-        match condition(char) {
-            false => { result.push(char) }
+    for char in chars.iter() {
+        match condition(*char) {
+            false => { result.push(*char) }
             true => { break },
         }
     }
@@ -266,6 +308,18 @@ mod tests {
         ),
         Type::Error
       );
+    }
+
+    #[test]
+    fn returns_a_token_from_string_with_breaker_character() {
+        assert_eq!(
+            "multiple".to_string(),
+            get_current_token(&"multiple words".chars().collect::<Vec<char>>()[..])
+        );
+        assert_eq!(
+            "semicolon".to_string(),
+            get_current_token(&"semicolon;".chars().collect::<Vec<char>>()[..])
+        );
     }
 
     #[test]
