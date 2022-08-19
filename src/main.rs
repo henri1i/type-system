@@ -1,4 +1,4 @@
-use std::{collections::HashMap, vec};
+use std::{collections::HashMap, vec, char};
 
 static TOKEN_BREAKERS: &[char] = &['{', '}', '(', ')', '=', ';', ' ', '[', ']'];
 
@@ -15,6 +15,7 @@ enum Type {
 enum Token {
     Int(String),
     Bool(String),
+    Char(String),
 }
 
 #[derive(Debug)]
@@ -122,9 +123,7 @@ fn infer(term: Term, mut map: HashMap<&str, Type>) -> Type {
 fn lex(value: &str) -> Vec<Token> {
     let mut tokens = vec![];
 
-    let mut value = value.to_string();
-
-    value.push(' ');
+    let value = value.to_string();
 
     let value = value.chars().collect::<Vec<_>>();
 
@@ -146,7 +145,7 @@ fn lex(value: &str) -> Vec<Token> {
             index += token.len();
 
             tokens.push(Token::Int(token));
-        }
+        };
 
         match current_char {
             't' => {
@@ -167,7 +166,29 @@ fn lex(value: &str) -> Vec<Token> {
                     index += token.len();
                 }
             },
-            _ => ()
+            '\'' => {
+                let token = concat_until(
+                    &value[index + 1 ..],
+                    |char| { char == '\'' }
+                );
+
+                println!("{:?}", token);
+
+                match token.len().cmp(&1) {
+                    std::cmp::Ordering::Equal => {
+                        tokens.push(Token::Char(token.clone()));
+                    },
+                    std::cmp::Ordering::Less => {
+                        panic!("Char must not be empty");
+                    },
+                    std::cmp::Ordering::Greater => {
+                        panic!("Char must be one char long");
+                    },
+                };
+
+                index += token.len() + 1;
+            },
+            _ => {}
         };
 
         index += 1;
@@ -332,6 +353,32 @@ mod tests {
     fn lex_bool() {
         assert_eq!(vec![Token::Bool("true".to_string())], lex("true"));
         assert_eq!(vec![Token::Bool("false".to_string())], lex("false"));
+    }
+
+    #[test]
+    fn lex_char() {
+        assert_eq!(
+            vec![Token::Char("a".to_string())],
+            lex("'a'")
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn lex_multiple_chars_into_quotes() {
+        lex("'aa'");
+    }
+
+    #[test]
+    fn lex_everything_together() {
+        assert_eq!(
+            vec![
+                Token::Int("55".to_string()),
+                Token::Bool("true".to_string()),
+                Token::Char("a".to_string())
+            ],
+            lex("55 true 'a'")
+        );
     }
 
     // #[test]
